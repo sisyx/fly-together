@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fly Together — Sync Music</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+
+<body>
+  <div class="cover-backdrop" id="coverBackdrop" aria-hidden="true"></div>
+
+  <div class="app">
+    <header class="header">
+      <div class="header-inner">
+        <h1 class="logo">
+          <span class="logo-icon" aria-hidden="true">✈</span>
+          Fly Together
+        </h1>
+        <div class="meta">
+          <span class="users-badge" id="usersCount">0 listeners</span>
+          <span class="role-badge" id="roleBadge">—</span>
+        </div>
+      </div>
+      <div class="header-extras">
+        <div class="connection-status" id="connectionStatus">
+          <span class="status-dot"></span>
+          <span class="status-text">Connecting…</span>
+        </div>
+        <section class="host-vote-section header-host-section" id="hostVoteSection">
+          <div class="host-request-wrap" id="hostRequestWrap">
+            <button type="button" class="btn btn-secondary btn-header" id="requestHostBtn">Request host</button>
+            <button type="button" class="btn btn-secondary btn-ghost btn-header" id="cancelRequestBtn" style="display: none;">Cancel</button>
+          </div>
+          <div class="hand-over-wrap" id="handOverWrap" style="display: none;">
+            <p class="hand-over-label" id="handOverLabel">0 want to be host</p>
+            <div class="hand-over-list" id="handOverList"></div>
+          </div>
+        </section>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="now-playing" id="nowPlayingSection">
+        <div class="now-playing-cover" id="nowPlayingCover">
+          <span class="now-playing-placeholder" id="nowPlayingPlaceholder">♪</span>
+          <img class="now-playing-img" id="nowPlayingImg" alt="" hidden />
+        </div>
+        <p class="now-playing-name" id="nowPlayingName">No track loaded</p>
+      </section>
+
+      <section class="saved-section" id="savedSection">
+        <div class="saved-header">
+          <h2 class="saved-heading">Saved songs</h2>
+        </div>
+        <p class="upload-hint saved-hint">MP3, WAV, OGG, M4A — max 50MB</p>
+        <div class="saved-grid">
+          <label class="saved-card saved-card-add" id="uploadSection" for="fileInput">
+            <span class="saved-card-cover">
+              <svg class="saved-card-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </span>
+            <span class="saved-card-body">
+              <span class="saved-card-add-label">Add</span>
+            </span>
+          </label>
+          <div class="saved-grid-list" id="savedList"></div>
+        </div>
+        <p class="saved-empty" id="savedEmpty">No saved songs yet. Tap the Add card to get started.</p>
+        <input type="file" id="fileInput" accept=".mp3,.wav,.ogg,.m4a" class="file-input-hidden" />
+      </section>
+    </main>
+  </div>
+
+  <div class="player-bottom">
+    <div class="waveform-overlay" aria-hidden="true">
+      <canvas class="waveform-canvas" id="waveformCanvas"></canvas>
+    </div>
+    <footer class="player-bar" id="playerBar">
+    <div class="player-bar-track" id="trackInfo">
+      <span class="track-name" id="trackName">No track loaded</span>
+    </div>
+    <div class="player-bar-controls">
+      <button type="button" class="btn btn-icon" id="playPauseBtn" title="Play / Pause" disabled>
+        <svg class="icon" id="playIcon" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+        <svg class="icon icon-hidden" id="pauseIcon" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+        </svg>
+      </button>
+      <div class="seek-wrap">
+        <span class="time" id="currentTime">0:00</span>
+        <input type="range" class="seek" id="seekBar" min="0" max="100" value="0" step="0.1" />
+        <span class="time" id="duration">0:00</span>
+      </div>
+    </div>
+    <div class="volume-wrap">
+      <label class="volume-label">
+        <span class="volume-icon" aria-hidden="true">🔊</span>
+        <input type="range" class="volume" id="volumeBar" min="0" max="100" value="100" />
+      </label>
+    </div>
+    </footer>
+  </div>
+
+  <audio id="audio" preload="auto"></audio>
+  <script src="https://unpkg.com/jsmediatags@3.9.5/dist/jsmediatags.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+
+</html>
