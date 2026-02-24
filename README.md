@@ -1,6 +1,6 @@
 # Fly Together
 
-A synchronized music listening web app. One person (the **host**) uploads and controls playback; everyone else stays in sync in real time over the same network.
+A synchronized music listening web app. One person (the **host**) uploads and controls playback; everyone else stays in sync in real time over the same network. Enjoy :)
 
 ## Features
 
