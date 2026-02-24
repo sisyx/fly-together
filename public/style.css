@@ -21,7 +21,11 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-family:
+    "DM Sans",
+    system-ui,
+    -apple-system,
+    sans-serif;
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
@@ -35,7 +39,9 @@ body {
   background: linear-gradient(165deg, #1a1625 0%, var(--bg) 40%, #0f0f12 100%);
   background-size: cover;
   background-position: center;
-  transition: background-image 0.5s ease, filter 0.5s ease;
+  transition:
+    background-image 0.5s ease,
+    filter 0.5s ease;
 }
 
 .cover-backdrop.has-cover {
@@ -44,7 +50,7 @@ body {
 }
 
 .cover-backdrop.has-cover::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   background: rgba(15, 15, 18, 0.72);
@@ -52,7 +58,7 @@ body {
 }
 
 .cover-backdrop.has-cover::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgba(15, 15, 18, 0.3) 0%, var(--bg) 65%);
@@ -147,7 +153,12 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: linear-gradient(135deg, #e0d4ff 0%, var(--accent) 50%, #c084fc 100%);
+  background: linear-gradient(
+    135deg,
+    #e0d4ff 0%,
+    var(--accent) 50%,
+    #c084fc 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -315,7 +326,9 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.2s, transform 0.1s;
+  transition:
+    background 0.2s,
+    transform 0.1s;
 }
 
 .btn-icon:hover:not(:disabled) {
@@ -433,12 +446,17 @@ body {
   width: 100vw;
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
-  background: linear-gradient(180deg, rgba(24, 24, 28, 0.6) 0%, rgba(18, 18, 22, 0.92) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(24, 24, 28, 0.6) 0%,
+    rgba(18, 18, 22, 0.92) 100%
+  );
   backdrop-filter: blur(16px);
   border: none;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 1.5rem max(1.5rem, env(safe-area-inset-left)) 1.75rem max(1.5rem, env(safe-area-inset-right));
+  padding: 1.5rem max(1.5rem, env(safe-area-inset-left)) 1.75rem
+    max(1.5rem, env(safe-area-inset-right));
 }
 
 .saved-header {
@@ -474,18 +492,35 @@ body {
 
 .saved-card {
   display: block;
-  background: linear-gradient(180deg, rgba(28, 28, 34, 0.9) 0%, rgba(22, 22, 28, 0.95) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(28, 28, 34, 0.9) 0%,
+    rgba(22, 22, 28, 0.95) 100%
+  );
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 24px;
   overflow: hidden;
-  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease,
+    background 0.22s ease;
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .saved-card:hover {
   border-color: rgba(167, 139, 250, 0.28);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(167, 139, 250, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  background: linear-gradient(180deg, rgba(32, 32, 38, 0.95) 0%, rgba(26, 26, 32, 0.98) 100%);
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(167, 139, 250, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: linear-gradient(
+    180deg,
+    rgba(32, 32, 38, 0.95) 0%,
+    rgba(26, 26, 32, 0.98) 100%
+  );
 }
 
 .saved-card-add {
@@ -539,7 +574,12 @@ body {
 
 .saved-card-cover {
   aspect-ratio: 1;
-  background: linear-gradient(155deg, rgba(167, 139, 250, 0.2) 0%, rgba(30, 28, 42, 0.95) 50%, rgba(15, 15, 18, 0.98) 100%);
+  background: linear-gradient(
+    155deg,
+    rgba(167, 139, 250, 0.2) 0%,
+    rgba(30, 28, 42, 0.95) 50%,
+    rgba(15, 15, 18, 0.98) 100%
+  );
   display: flex;
   align-items: center;
   justify-content: center;
@@ -568,7 +608,9 @@ body {
   color: #fff;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.2s ease, background 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    background 0.2s ease;
 }
 
 .saved-card-play-overlay svg {
@@ -628,7 +670,10 @@ body {
   color: var(--text-muted);
   cursor: pointer;
   text-decoration: none;
-  transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    transform 0.15s ease;
 }
 
 .btn-saved-action:hover {
@@ -763,7 +808,9 @@ body {
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
 
 .btn-secondary:hover {
@@ -839,7 +886,6 @@ body {
 }
 
 @keyframes pulse {
-
   0%,
   100% {
     opacity: 1;
@@ -848,4 +894,12 @@ body {
   50% {
     opacity: 0.5;
   }
+}
+#searchInput {
+  background: transparent;
+  border-radius: 1000px;
+  padding: 0.4rem 0.7rem;
+  border-color: var(--accent);
+  border-style: solid;
+  color: white;
 }
