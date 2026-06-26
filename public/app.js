@@ -217,7 +217,7 @@ function all() {
     }
   }
 
-  function loadTrack(url, name, coverDataUrl, autoPlay) {
+  function loadTrack(url, name, artist, coverDataUrl, autoPlay) {
     const displayName = name || "Current track";
     trackNameEl.textContent = displayName;
     if (nowPlayingName) nowPlayingName.textContent = displayName;
@@ -257,6 +257,7 @@ function all() {
 
   function renderSavedList(tracks) {
     if (!savedList || !savedEmpty) return;
+    console.log(tracks.slice(0, 10));
     const scrollY = window.scrollY;
     savedList.innerHTML = "";
     if (tracks.length === 0) {
@@ -273,20 +274,24 @@ function all() {
     sorted.forEach((t) => {
       const card = document.createElement("div");
       card.className = "saved-card";
-      const name = t.originalName || t.filename || "Track";
+      const coverUrl = t?.metadata.coverUrl || null;
+      const name =
+        t?.metadata?.title || t.originalName || t.filename || "Track";
+      const artist = t?.metadata?.artist || "Unknown Artist";
       card.innerHTML = `
         <div class="saved-card-cover-wrap">
           <div class="saved-card-cover">
-            <svg class="saved-card-cover-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-            </svg>
+              <img src=${coverUrl} class="saved-card-cover-icon" />
           </div>
           <button type="button" class="btn saved-card-play-overlay" title="Set as current track for everyone" aria-label="Play">
             ${playIconSvg}
           </button>
         </div>
         <div class="saved-card-body">
+          <div class="saved-card-body-left">
           <div class="saved-item-name" title="${name.replace(/"/g, "&quot;")}">${name.replace(/</g, "&lt;")}</div>
+          <div class="saved-item-artist">${artist}</div>
+          </div>
           <div class="saved-item-actions"></div>
         </div>
       `;
@@ -299,7 +304,14 @@ function all() {
             method: "POST",
           });
           const track = await r.json();
-          if (track.url) loadTrack(track.url, track.originalName, null, true);
+          const coverUrl = track?.metadata.coverUrl || null;
+          const name =
+            track?.metadata?.title ||
+            track.originalName ||
+            track.filename ||
+            "Track";
+          const artist = track?.metadata?.artist || "Unknown Artist";
+          if (track.url) loadTrack(track.url, name, artist, coverUrl, true);
         } catch (e) {
           console.error(e);
         }
@@ -420,7 +432,15 @@ function all() {
 
     socket.on("state-sync", (data) => {
       if (data.track) {
-        loadTrack(data.track.url, data.track.originalName);
+        const track = data.track;
+        const coverUrl = track?.metadata.coverUrl || null;
+        const name =
+          track?.metadata?.title ||
+          track.originalName ||
+          track.filename ||
+          "Track";
+        const artist = track?.metadata?.artist || "Unknown Artist";
+        loadTrack(data.track.url, name, artist, coverUrl, true);
       }
       applyPlaybackState(data.playing, data.currentTime);
       if (data.duration) {
@@ -430,7 +450,14 @@ function all() {
     });
 
     socket.on("track-changed", (track) => {
-      if (track) loadTrack(track.url, track.originalName);
+      const coverUrl = track?.metadata.coverUrl || null;
+      const name =
+        track?.metadata?.title ||
+        track.originalName ||
+        track.filename ||
+        "Track";
+      const artist = track?.metadata?.artist || "Unknown Artist";
+      if (track) loadTrack(track.url, name, artist, coverUrl, true);
     });
 
     socket.on("play", () => {

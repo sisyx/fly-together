@@ -1,23 +1,86 @@
-const express = require('express');
-const http = require('http');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
-const { Server } = require('socket.io');
-const multer = require('multer');
+const express = require("express");
+const http = require("http");
+const path = require("path");
+const fs = require("fs");
+const os = require("os");
+const { Server } = require("socket.io");
+const multer = require("multer");
+const NodeID3 = require("node-id3");
 
 const PORT = process.env.PORT || 3000;
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
-const SAVED_TRACKS_FILE = path.join(__dirname, 'saved-tracks.json');
+const UPLOAD_DIR = path.join(__dirname, "uploads");
+const COVERS_DIR = path.join(__dirname, "covers");
+const SAVED_TRACKS_FILE = path.join(__dirname, "saved-tracks.json");
 
-// Ensure upload directory exists
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+for (const dir of [UPLOAD_DIR, COVERS_DIR]) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+function updateMetadatas() {
+  const files = loadSavedTracks();
+  const updatedTracksList = [];
+  files.forEach((file, idx) => {
+    if (file?.metadata) {
+      updateMetadatas;
+      updatedTracksList(file);
+    }
+    if (file?.filename && file?.originalName) {
+      const filePath = path.join(UPLOAD_DIR, file.filename);
+      const metadata = extractMetadata(filePath, file.originalName);
+      updatedTracksList.push({ ...file, metadata });
+      console.log(`processing ${idx + 1}/${files.length}`);
+    }
+  });
+  updateSavedTracksFile(updatedTracksList);
+}
+
+function extractMetadata(filePath, originalName) {
+  const ext = path.extname(filePath).toLowerCase();
+  const meta = {
+    title: path.basename(originalName, ext),
+    artist: undefined,
+    album: undefined,
+    year: undefined,
+    coverUrl: undefined,
+  };
+
+  if (ext !== ".mp3") return meta; // node-id3 only handles mp3
+
+  let tags;
+  try {
+    tags = NodeID3.read(filePath);
+  } catch (err) {
+    console.warn("[metadata] Could not read tags for", filePath, err.message);
+    return meta;
+  }
+
+  if (tags.title) meta.title = tags.title;
+  if (tags.artist) meta.artist = tags.artist;
+  if (tags.album) meta.album = tags.album;
+  if (tags.year) meta.year = tags.year;
+
+  // Extract embedded cover art
+  const pic = tags.image; // { mime, type, description, imageBuffer }
+  if (pic && pic.imageBuffer) {
+    const coverFilename =
+      path.basename(filePath, path.extname(filePath)) + ".jpg";
+    const coverPath = path.join(COVERS_DIR, coverFilename);
+    if (!fs.existsSync(coverPath)) {
+      try {
+        fs.writeFileSync(coverPath, pic.imageBuffer);
+      } catch (err) {
+        console.warn("[metadata] Could not save cover art:", err.message);
+      }
+    }
+    meta.coverUrl = `/covers/${coverFilename}`;
+  }
+
+  return meta;
 }
 
 function loadSavedTracks() {
   try {
-    const data = fs.readFileSync(SAVED_TRACKS_FILE, 'utf8');
+    const data = fs.readFileSync(SAVED_TRACKS_FILE, "utf8");
     const parsed = JSON.parse(data);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -25,11 +88,10 @@ function loadSavedTracks() {
   }
 }
 
-function saveSavedTracks(tracks) {
-  fs.writeFileSync(SAVED_TRACKS_FILE, JSON.stringify(tracks, null, 2), 'utf8');
+function updateSavedTracksFile(tracks) {
+  fs.writeFileSync(SAVED_TRACKS_FILE, JSON.stringify(tracks, null, 2), "utf8");
 }
 
-// Add current track to saved list if not already there (by filename)
 function addCurrentTrackToSaved() {
   if (!state.track) return;
   const tracks = loadSavedTracks();
@@ -40,87 +102,81 @@ function addCurrentTrackToSaved() {
     originalName: state.track.originalName,
     url: state.track.url,
     savedAt: new Date().toISOString(),
+    metadata: state.track.metadata || {},
   };
   tracks.push(entry);
-  saveSavedTracks(tracks);
+  updateSavedTracksFile(tracks);
 }
 
 const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: { origin: '*' },
+  cors: { origin: "*" },
   pingTimeout: 60000,
   pingInterval: 25000,
 });
 
-// Multer config: store in /tmp, keep original extension
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.mp3';
-    const name = `track_${Date.now()}${ext}`;
-    cb(null, name);
+    const ext = path.extname(file.originalname) || ".mp3";
+    cb(null, `track_${Date.now()}${ext}`);
   },
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
   fileFilter: (req, file, cb) => {
-    const allowed = /\.(mp3|wav|ogg|m4a)$/i;
-    if (allowed.test(path.extname(file.originalname))) {
+    if (/\.(mp3|wav|ogg|m4a)$/i.test(path.extname(file.originalname))) {
       cb(null, true);
     } else {
-      cb(new Error('Only mp3, wav, ogg, m4a are allowed'));
+      cb(new Error("Only mp3, wav, ogg, m4a are allowed"));
     }
   },
 });
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
+app.use("/uploads", express.static(UPLOAD_DIR));
+app.use("/covers", express.static(COVERS_DIR));
 
-// Serve uploaded audio files
-app.use('/audio', express.static(UPLOAD_DIR));
-
-// State: host socket id, current track, playback state
 let state = {
-  hostId: null,
-  track: null,       // { filename, originalName, url }
+  track: null, // { filename, originalName, url, metadata: { title, artist, album, year, coverUrl } }
   playing: false,
   currentTime: 0,
   duration: 0,
+  metadata: {},
 };
 
-// Users who requested to become host (socket ids)
-let hostRequests = new Set();
-
-// Upload endpoint: any connected user can upload (everyone can select a song)
-app.post('/upload', upload.single('audio'), (req, res) => {
+app.post("/upload", upload.single("audio"), (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-    const url = `/audio/${req.file.filename}`;
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    const url = `/uploads/${req.file.filename}`;
+    const metadata = extractMetadata(req.file.path, req.file.originalname);
+
     state.track = {
       filename: req.file.filename,
       originalName: req.file.originalname,
       url,
+      metadata,
     };
     state.currentTime = 0;
     state.playing = false;
+
     addCurrentTrackToSaved();
-    io.emit('track-changed', state.track);
-    res.json({ url, originalName: req.file.originalname });
+    io.emit("track-changed", state.track);
+
+    res.json({ url, originalName: req.file.originalname, metadata });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Get current state for new clients
-app.get('/api/state', (req, res) => {
+app.get("/api/state", (req, res) => {
   res.json({
-    hostId: state.hostId,
     track: state.track,
     playing: state.playing,
     currentTime: state.currentTime,
@@ -128,61 +184,75 @@ app.get('/api/state', (req, res) => {
   });
 });
 
-// --- Saved tracks ---
+app.get("/api/metadata/:filename", (req, res) => {
+  const safe = path.basename(req.params.filename); // prevent path traversal
+  const filePath = path.join(UPLOAD_DIR, safe);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "File not found" });
+  }
+  const tracks = loadSavedTracks();
+  const entry = tracks.find((t) => t.filename === safe);
+  const originalName = entry ? entry.originalName : safe;
+  const metadata = extractMetadata(filePath, originalName);
+  res.json({ filename: safe, metadata });
+});
 
-// List all saved tracks
-app.get('/api/saved', (req, res) => {
+app.get("/api/saved", (req, res) => {
   res.json({ saved: loadSavedTracks() });
 });
 
-// Remove a track from the saved list (does not delete the file)
-app.delete('/api/saved/:id', (req, res) => {
+app.delete("/api/saved/:id", (req, res) => {
   const tracks = loadSavedTracks();
   const index = tracks.findIndex((t) => t.id === req.params.id);
-  if (index === -1) {
-    return res.status(404).json({ error: 'Saved track not found' });
-  }
+  if (index === -1)
+    return res.status(404).json({ error: "Saved track not found" });
   tracks.splice(index, 1);
-  saveSavedTracks(tracks);
+  updateSavedTracksFile(tracks);
   res.status(204).send();
 });
 
-// Set a saved track as the current track (everyone will hear it)
-app.post('/api/saved/:id/set-current', (req, res) => {
+app.post("/api/saved/:id/set-current", (req, res) => {
   const tracks = loadSavedTracks();
   const entry = tracks.find((t) => t.id === req.params.id);
-  if (!entry) {
-    return res.status(404).json({ error: 'Saved track not found' });
-  }
+  if (!entry) return res.status(404).json({ error: "Saved track not found" });
+
   const filePath = path.join(UPLOAD_DIR, entry.filename);
   if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'Audio file no longer available' });
+    return res.status(404).json({ error: "Audio file no longer available" });
   }
+
+  // Re-extract metadata in case it wasn't stored when the track was first saved
+  const metadata =
+    entry.metadata && Object.keys(entry.metadata).length > 0
+      ? entry.metadata
+      : extractMetadata(filePath, entry.originalName);
+
   state.track = {
     filename: entry.filename,
     originalName: entry.originalName,
     url: entry.url,
+    metadata,
   };
   state.currentTime = 0;
   state.playing = false;
+
   addCurrentTrackToSaved();
-  io.emit('track-changed', state.track);
+  io.emit("track-changed", state.track);
   res.json(state.track);
 });
 
-// Download a saved track (attachment with original filename)
-app.get('/api/saved/:id/download', (req, res) => {
+app.get("/api/saved/:id/download", (req, res) => {
   const tracks = loadSavedTracks();
   const entry = tracks.find((t) => t.id === req.params.id);
-  if (!entry) {
-    return res.status(404).json({ error: 'Saved track not found' });
-  }
+  if (!entry) return res.status(404).json({ error: "Saved track not found" });
+
   const filePath = path.join(UPLOAD_DIR, entry.filename);
   if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'Audio file no longer available' });
+    return res.status(404).json({ error: "Audio file no longer available" });
   }
-  const safeName = entry.originalName.replace(/[^\w.\- ]/g, '_');
-  res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+
+  const safeName = entry.originalName.replace(/[^\w.\- ]/g, "_");
+  res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
   res.sendFile(filePath);
 });
 
@@ -190,109 +260,56 @@ function getLocalIP() {
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
     for (const net of nets[name]) {
-      if (net.family === 'IPv4' && !net.internal) {
-        return net.address;
-      }
+      if (net.family === "IPv4" && !net.internal) return net.address;
     }
   }
-  return 'localhost';
+  return "localhost";
 }
 
-io.on('connection', (socket) => {
-  const isFirst = state.hostId === null;
-  if (isFirst) {
-    state.hostId = socket.id;
-  }
-
-  const isHost = state.hostId === socket.id;
-  socket.emit('role', { isHost, hostId: state.hostId });
-  socket.emit('state-sync', {
+io.on("connection", (socket) => {
+  socket.emit("state-sync", {
     track: state.track,
     playing: state.playing,
     currentTime: state.currentTime,
     duration: state.duration,
+    metadata: state.metadata,
   });
-  socket.emit('host-requests', Array.from(hostRequests));
 
-  const count = io.engine.clientsCount;
-  io.emit('users-count', count);
+  io.emit("users-count", io.engine.clientsCount);
 
-  // Playback: any user can control (shared controls)
-  socket.on('play', () => {
+  socket.on("play", () => {
     state.playing = true;
-    socket.broadcast.emit('play');
+    socket.broadcast.emit("play");
   });
-
-  socket.on('pause', () => {
+  socket.on("pause", () => {
     state.playing = false;
-    socket.broadcast.emit('pause');
+    socket.broadcast.emit("pause");
   });
 
-  socket.on('seek', (time) => {
-    const t = Math.max(0, Number(time));
-    state.currentTime = t;
-    socket.broadcast.emit('seek', t);
+  socket.on("seek", (time) => {
+    state.currentTime = Math.max(0, Number(time));
+    socket.broadcast.emit("seek", state.currentTime);
   });
 
-  socket.on('position', (data) => {
-    const { currentTime, duration } = data;
-    if (typeof currentTime === 'number') state.currentTime = currentTime;
-    if (typeof duration === 'number') state.duration = duration;
-    socket.broadcast.emit('position-sync', { currentTime: state.currentTime, duration: state.duration });
+  socket.on("position", ({ currentTime, duration }) => {
+    if (typeof currentTime === "number") state.currentTime = currentTime;
+    if (typeof duration === "number") state.duration = duration;
+    socket.broadcast.emit("position-sync", {
+      currentTime: state.currentTime,
+      duration: state.duration,
+    });
   });
 
-  // Host voting / handover
-  socket.on('request-host', () => {
-    if (state.hostId === socket.id) return;
-    hostRequests.add(socket.id);
-    io.emit('host-requests', Array.from(hostRequests));
-  });
-
-  socket.on('cancel-host-request', () => {
-    hostRequests.delete(socket.id);
-    io.emit('host-requests', Array.from(hostRequests));
-  });
-
-  socket.on('hand-over-host', (targetSocketId) => {
-    if (state.hostId !== socket.id || !targetSocketId) return;
-    const target = io.sockets.sockets.get(targetSocketId);
-    if (!target) return;
-    hostRequests.delete(targetSocketId);
-    state.hostId = targetSocketId;
-    socket.emit('role', { isHost: false, hostId: state.hostId });
-    target.emit('role', { isHost: true, hostId: state.hostId });
-    io.emit('host-changed', state.hostId);
-    io.emit('host-requests', Array.from(hostRequests));
-  });
-
-  socket.on('disconnect', () => {
-    hostRequests.delete(socket.id);
-    if (state.hostId === socket.id) {
-      state.hostId = null;
-      const clients = Array.from(io.sockets.sockets.values()).filter((s) => s.id !== socket.id);
-      // Prefer giving host to someone who requested it (vote for host)
-      const next =
-        clients.find((s) => hostRequests.has(s.id)) ||
-        clients[0];
-      if (next) {
-        state.hostId = next.id;
-        hostRequests.delete(next.id);
-        next.emit('role', { isHost: true, hostId: state.hostId });
-        io.emit('host-changed', state.hostId);
-        io.emit('host-requests', Array.from(hostRequests));
-      } else {
-        io.emit('host-changed', null);
-      }
-    }
-    io.emit('users-count', io.engine.clientsCount);
-    io.emit('host-requests', Array.from(hostRequests));
+  socket.on("disconnect", () => {
+    io.emit("users-count", io.engine.clientsCount);
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, "0.0.0.0", async () => {
   const localIP = getLocalIP();
+  await updateMetadatas();
   console.log(`
-  Fly Together — Sync Music
+  Fly Together
   -------------------------
   Local:   http://localhost:${PORT}
   LAN:     http://${localIP}:${PORT}
@@ -301,6 +318,4 @@ server.listen(PORT, '0.0.0.0', () => {
 `);
 });
 
-server.on('error', (err) => {
-  console.error('Server error:', err);
-});
+server.on("error", (err) => console.error("Server error:", err));
