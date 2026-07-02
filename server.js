@@ -21,10 +21,8 @@ function updateMetadatas() {
   const updatedTracksList = [];
   files.forEach((file, idx) => {
     if (file?.metadata) {
-      updateMetadatas;
-      updatedTracksList(file);
-    }
-    if (file?.filename && file?.originalName) {
+      updatedTracksList.push(file);
+    } else if (file?.filename && file?.originalName) {
       const filePath = path.join(UPLOAD_DIR, file.filename);
       const metadata = extractMetadata(filePath, file.originalName);
       updatedTracksList.push({ ...file, metadata });
@@ -88,7 +86,7 @@ function loadSavedTracks() {
   }
 }
 
-function updateSavedTracksFile(tracks) {
+function updateSavedTracksFile(tracks, removePrevious = true) {
   fs.writeFileSync(SAVED_TRACKS_FILE, JSON.stringify(tracks, null, 2), "utf8");
 }
 
@@ -277,13 +275,22 @@ io.on("connection", (socket) => {
 
   io.emit("users-count", io.engine.clientsCount);
 
+  // socket.on("play", () => {
+  //   state.playing = true;
+  //   socket.broadcast.emit("play");
+  // });
+  // socket.on("pause", () => {
+  //   state.playing = false;
+  //   socket.broadcast.emit("pause");
+  // });
+
   socket.on("play", () => {
     state.playing = true;
-    socket.broadcast.emit("play");
+    socket.broadcast.emit("play", { currentTime: state.currentTime });
   });
   socket.on("pause", () => {
     state.playing = false;
-    socket.broadcast.emit("pause");
+    socket.broadcast.emit("pause", { currentTime: state.currentTime });
   });
 
   socket.on("seek", (time) => {

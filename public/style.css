@@ -64,6 +64,17 @@ body {
   height: 100dvh;
 }
 
+/* @media (max-width: 768px) {
+  .app {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .main {
+    overflow-y: auto;
+  }
+} */
+
 .header {
   width: 100vw;
   margin-left: calc(50% - 50vw);
@@ -168,6 +179,18 @@ body {
   font-size: 0.8125rem;
 }
 
+@media (max-width: 768px) {
+  .header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .meta {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}
+
 .logo {
   margin: 0;
   font-size: 1.375rem;
@@ -238,6 +261,16 @@ body {
   overflow: hidden;
 }
 
+@media (max-width: 768px) {
+  .main {
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    gap: 1rem;
+    padding-bottom: 70px; /* space for fixed player */
+  }
+}
+
 .file-input-hidden {
   position: absolute;
   width: 0.1px;
@@ -289,22 +322,28 @@ body {
 }
 
 @media (max-width: 768px) {
-  .now-playing-cover {
-    width: 160px;
-    height: 160px;
-    margin-bottom: 0.85rem;
+  .now-playing-cover,
+  .saved-card-cover-wrap {
+    width: min(45vw, 80px);
+    height: min(45vw, 80px);
+  }
+}
+
+@media (max-width: 768px) {
+  .now-playing {
+    flex: none;
+    padding-top: 1rem;
+  }
+
+  .saved-section {
+    flex: none;
+    overflow: visible;
   }
 }
 
 @media (max-width: 480px) {
   .now-playing {
     margin-bottom: 1rem;
-  }
-
-  .now-playing-cover {
-    width: 140px;
-    height: 140px;
-    margin-bottom: 0.75rem;
   }
 
   .now-playing-placeholder {
@@ -462,6 +501,13 @@ body {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
+
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: flex;
+  align-items: center;
+  flex: 0 0 100px;
 }
 
 .volume-label {
@@ -795,6 +841,17 @@ body {
   line-height: 1.5;
 }
 
+@media (max-width: 768px) {
+  .saved-grid {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .saved-card {
+    width: 100%;
+  }
+}
+
 /* Bottom area: waveform on top, player bar below */
 .player-bottom {
   position: fixed;
@@ -804,6 +861,12 @@ body {
   z-index: 10;
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .main {
+    padding-bottom: 70px;
+  }
 }
 
 .waveform-overlay {
@@ -860,13 +923,8 @@ body {
   }
 
   .player-bar-track {
-    flex: 0 1 120px;
+    flex: 0 1;
   }
-
-  .player-bar .volume-wrap {
-    flex: 0 0 80px;
-  }
-
   .volume {
     max-width: 80px;
   }
@@ -902,6 +960,7 @@ body {
   }
 
   .player-bar .volume-wrap {
+    display: none;
     order: 2;
     flex: 0 0 auto;
     margin-top: 0.25rem;
@@ -954,13 +1013,24 @@ body {
   min-width: 80px;
 }
 
-.player-bar .volume-wrap {
-  margin: 0;
-  padding: 0;
-  border: none;
-  display: flex;
-  align-items: center;
-  flex: 0 0 100px;
+@media (max-width: 768px) {
+  .player-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .player-bar-track {
+    width: 100%;
+  }
+
+  .player-bar-controls {
+    width: 100%;
+  }
+
+  .volume-wrap {
+    width: 100%;
+    display: none;
+  }
 }
 
 .host-vote-section {
