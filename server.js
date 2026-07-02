@@ -275,13 +275,22 @@ io.on("connection", (socket) => {
 
   io.emit("users-count", io.engine.clientsCount);
 
+  // socket.on("play", () => {
+  //   state.playing = true;
+  //   socket.broadcast.emit("play");
+  // });
+  // socket.on("pause", () => {
+  //   state.playing = false;
+  //   socket.broadcast.emit("pause");
+  // });
+
   socket.on("play", () => {
     state.playing = true;
-    socket.broadcast.emit("play");
+    socket.broadcast.emit("play", { currentTime: state.currentTime });
   });
   socket.on("pause", () => {
     state.playing = false;
-    socket.broadcast.emit("pause");
+    socket.broadcast.emit("pause", { currentTime: state.currentTime });
   });
 
   socket.on("seek", (time) => {

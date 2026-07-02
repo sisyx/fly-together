@@ -460,15 +460,36 @@ function all() {
       if (track) loadTrack(track.url, name, artist, coverUrl, true);
     });
 
-    socket.on("play", () => {
+    socket.on("play", (data) => {
       if (audio.src) {
+        if (Number.isFinite(data?.currentTime)) {
+          isSeekingBySync = true;
+          audio.currentTime = data.currentTime;
+          if (audio.duration)
+            seekBar.value = (data.currentTime / audio.duration) * 100;
+          currentTimeEl.textContent = formatTime(data.currentTime);
+          setTimeout(() => {
+            isSeekingBySync = false;
+          }, 100);
+        }
         if (audioContext?.state === "suspended") audioContext.resume();
         audio.play().catch(() => {});
       }
     });
 
-    socket.on("pause", () => audio.pause());
-
+    socket.on("pause", (data) => {
+      if (Number.isFinite(data?.currentTime)) {
+        isSeekingBySync = true;
+        audio.currentTime = data.currentTime;
+        if (audio.duration)
+          seekBar.value = (data.currentTime / audio.duration) * 100;
+        currentTimeEl.textContent = formatTime(data.currentTime);
+        setTimeout(() => {
+          isSeekingBySync = false;
+        }, 100);
+      }
+      audio.pause();
+    });
     socket.on("seek", (time) => {
       isSeekingBySync = true;
       audio.currentTime = time;
