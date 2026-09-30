@@ -26,6 +26,9 @@ function all() {
   );
   const nowPlayingImg = document.getElementById("nowPlayingImg");
   const nowPlayingName = document.getElementById("nowPlayingName");
+  const nowPlayingArtist = document.getElementById("nowPlayingArtist");
+  const trackArtistEl = document.getElementById("trackArtist");
+  const libraryCount = document.getElementById("libraryCount");
   const waveformCanvas = document.getElementById("waveformCanvas");
 
   const POSITION_SYNC_INTERVAL_MS = 2500;
@@ -127,11 +130,11 @@ function all() {
         const x = i * barWidth + (barWidth - barW) / 2;
         const y = h - barH;
         const opacity = 0.25 + value * 0.5;
-        ctx.fillStyle = `rgba(167, 139, 250, ${opacity})`;
+        ctx.fillStyle = `rgba(240, 82, 56, ${opacity})`;
         ctx.fillRect(x, y, barW, barH);
       }
     } else {
-      ctx.fillStyle = "rgba(167, 139, 250, 0.06)";
+      ctx.fillStyle = "rgba(240, 82, 56, 0.14)";
       ctx.fillRect(0, h - 1, w, 1);
     }
     requestAnimationFrame(drawWaveform);
@@ -219,11 +222,15 @@ function all() {
 
   function loadTrack(url, name, artist, coverDataUrl, autoPlay) {
     const displayName = name || "Current track";
+    const displayArtist = artist || "Unknown artist";
     trackNameEl.textContent = displayName;
+    if (trackArtistEl) trackArtistEl.textContent = displayArtist;
     if (nowPlayingName) nowPlayingName.textContent = displayName;
+    if (nowPlayingArtist) nowPlayingArtist.textContent = displayArtist;
     setCover(coverDataUrl || null);
     audio.src = url || "";
     seekBar.value = 0;
+    seekBar.style.setProperty("--progress", "0%");
     currentTimeEl.textContent = "0:00";
     durationEl.textContent = "0:00";
     playPauseBtn.disabled = !url;
@@ -257,7 +264,10 @@ function all() {
 
   function renderSavedList(tracks) {
     if (!savedList || !savedEmpty) return;
-    console.log(tracks.slice(0, 10));
+    if (libraryCount) {
+      const count = tracks.length;
+      libraryCount.textContent = `${String(count).padStart(2, "0")} ${count === 1 ? "track" : "tracks"}`;
+    }
     const scrollY = window.scrollY;
     savedList.innerHTML = "";
     if (tracks.length === 0) {
@@ -278,10 +288,21 @@ function all() {
       const name =
         t?.metadata?.title || t.originalName || t.filename || "Track";
       const artist = t?.metadata?.artist || "Unknown Artist";
+      const safeName = name
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/"/g, "&quot;");
+      const safeArtist = artist
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/"/g, "&quot;");
+      const coverMarkup = coverUrl
+        ? `<img src="${coverUrl}" class="saved-card-cover-icon" alt="" />`
+        : '<span class="saved-card-cover-fallback" aria-hidden="true">♪</span>';
       card.innerHTML = `
         <div class="saved-card-cover-wrap">
           <div class="saved-card-cover">
-              <img src=${coverUrl} class="saved-card-cover-icon" />
+              ${coverMarkup}
           </div>
           <button type="button" class="btn saved-card-play-overlay" title="Set as current track for everyone" aria-label="Play">
             ${playIconSvg}
@@ -289,8 +310,8 @@ function all() {
         </div>
         <div class="saved-card-body">
           <div class="saved-card-body-left">
-          <div class="saved-item-name" title="${name.replace(/"/g, "&quot;")}">${name.replace(/</g, "&lt;")}</div>
-          <div class="saved-item-artist">${artist}</div>
+          <div class="saved-item-name" title="${safeName}">${safeName}</div>
+          <div class="saved-item-artist" title="${safeArtist}">${safeArtist}</div>
           </div>
           <div class="saved-item-actions"></div>
         </div>
@@ -576,8 +597,9 @@ function all() {
         extractCoverFromFile(file, (coverDataUrl) => {
           loadTrack(
             data.url,
-            data.originalName || file.name,
-            coverDataUrl,
+            data.metadata?.title || data.originalName || file.name,
+            data.metadata?.artist || "Unknown artist",
+            coverDataUrl || data.metadata?.coverUrl || null,
             true,
           );
         });
@@ -619,6 +641,7 @@ function all() {
   seekBar.addEventListener("input", () => {
     if (!audio.duration || isSeekingBySync) return;
     const pct = Number(seekBar.value);
+    seekBar.style.setProperty("--progress", `${pct}%`);
     const time = (pct / 100) * audio.duration;
     currentTimeEl.textContent = formatTime(time);
     audio.currentTime = time;
@@ -628,7 +651,10 @@ function all() {
   audio.addEventListener("timeupdate", () => {
     if (isSeekingBySync || !audio.duration) return;
     const pct = (audio.currentTime / audio.duration) * 100;
-    if (Math.abs(pct - Number(seekBar.value)) > 0.5) seekBar.value = pct;
+    if (Math.abs(pct - Number(seekBar.value)) > 0.5) {
+      seekBar.value = pct;
+      seekBar.style.setProperty("--progress", `${pct}%`);
+    }
     currentTimeEl.textContent = formatTime(audio.currentTime);
   });
 
@@ -639,6 +665,7 @@ function all() {
   // Volume
   volumeBar.addEventListener("input", () => {
     audio.volume = Number(volumeBar.value) / 100;
+    volumeBar.style.setProperty("--progress", `${volumeBar.value}%`);
   });
   // Bootstrap
   setupVisibilityHandling();
