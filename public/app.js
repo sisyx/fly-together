@@ -26,7 +26,19 @@ function all() {
   );
   const nowPlayingImg = document.getElementById("nowPlayingImg");
   const nowPlayingName = document.getElementById("nowPlayingName");
+  const nowPlayingArtist = document.getElementById("nowPlayingArtist");
+  const nowPlayingSection = document.getElementById("nowPlayingSection");
+  const trackArtistEl = document.getElementById("trackArtist");
+  const libraryCount = document.getElementById("libraryCount");
   const waveformCanvas = document.getElementById("waveformCanvas");
+  const loginGate = document.getElementById("loginGate");
+  const loginForm = document.getElementById("loginForm");
+  const displayNameInput = document.getElementById("displayNameInput");
+  const loginError = document.getElementById("loginError");
+  const declineAudioBtn = document.getElementById("declineAudioBtn");
+  const userBadge = document.getElementById("userBadge");
+  const userNameEl = document.getElementById("userName");
+  const userAvatar = document.getElementById("userAvatar");
 
   const POSITION_SYNC_INTERVAL_MS = 2500;
   const SEEK_SYNC_THRESHOLD = 1.5;
@@ -42,8 +54,101 @@ function all() {
   let analyser = null;
   let waveformInitialized = false;
   let wasPlayingBeforeHidden = false;
-  const WAVEFORM_BAR_COUNT = 20;
+  const HALO_PARTICLE_COUNT = 108;
   const waveformData = new Uint8Array(128);
+  const USER_NAME_KEY = "fly-together-display-name";
+  let currentUserName = "";
+  let roomEntered = false;
+
+  function storedUserName() {
+    try {
+      return (localStorage.getItem(USER_NAME_KEY) || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function saveUserName(name) {
+    try {
+      localStorage.setItem(USER_NAME_KEY, name);
+    } catch {
+      // The room still works when storage is disabled.
+    }
+  }
+
+  function updateUserBadge(name) {
+    currentUserName = name;
+    if (userNameEl) userNameEl.textContent = name || "Guest";
+    if (userAvatar) userAvatar.textContent = name ? name.charAt(0).toUpperCase() : "?";
+  }
+
+  function openLogin() {
+    if (!loginGate || !displayNameInput) return;
+    loginGate.hidden = false;
+    document.body.classList.add("login-open");
+    displayNameInput.value = currentUserName;
+    if (loginError) loginError.textContent = "";
+    requestAnimationFrame(() => displayNameInput.focus());
+  }
+
+  function closeLogin() {
+    if (!loginGate) return;
+    loginGate.hidden = true;
+    document.body.classList.remove("login-open");
+  }
+
+  function setupLogin() {
+    const savedName = storedUserName();
+    updateUserBadge(savedName);
+    openLogin();
+    statusText.textContent = "Waiting for approval";
+
+    loginForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const name = displayNameInput.value.trim().replace(/\s+/g, " ");
+      if (name.length < 2) {
+        if (loginError) loginError.textContent = "Please enter at least two characters.";
+        displayNameInput.focus();
+        return;
+      }
+      updateUserBadge(name);
+      saveUserName(name);
+      initWaveform();
+      if (audioContext?.state === "suspended") {
+        try {
+          await audioContext.resume();
+        } catch {
+          if (loginError) {
+            loginError.textContent =
+              "Your browser did not enable audio. Please try again.";
+          }
+          return;
+        }
+      }
+      closeLogin();
+      if (roomEntered) refreshSavedList();
+      else enterRoom();
+    });
+
+    declineAudioBtn?.addEventListener("click", () => {
+      if (loginError) {
+        loginError.textContent =
+          "Autoplay approval is required to enter this listening room.";
+      }
+    });
+
+    userBadge?.addEventListener("click", openLogin);
+  }
+
+  function enterRoom() {
+    if (roomEntered) return;
+    roomEntered = true;
+    statusText.textContent = "Connecting…";
+    setupVisibilityHandling();
+    initSocket();
+    refreshSavedList();
+    drawWaveform();
+  }
 
   function setupVisibilityHandling() {
     document.addEventListener("visibilitychange", () => {
@@ -74,7 +179,7 @@ function all() {
   }
 
   function initWaveform() {
-    if (waveformInitialized || !audio.src) return;
+    if (waveformInitialized) return;
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
@@ -82,9 +187,9 @@ function all() {
       const source = audioContext.createMediaElementSource(audio);
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.75;
-      analyser.minDecibels = -70;
-      analyser.maxDecibels = -25;
+      analyser.smoothingTimeConstant = 0.62;
+      analyser.minDecibels = -82;
+      analyser.maxDecibels = -28;
       source.connect(analyser);
       analyser.connect(audioContext.destination);
       waveformInitialized = true;
@@ -93,7 +198,7 @@ function all() {
     }
   }
 
-  function drawWaveform() {
+  function drawWaveform(timestamp = 0) {
     if (!waveformCanvas) {
       requestAnimationFrame(drawWaveform);
       return;
@@ -107,32 +212,78 @@ function all() {
     const rect = waveformCanvas.getBoundingClientRect();
     const w = rect.width;
     const h = rect.height;
-    if (waveformCanvas.width !== w * dpr || waveformCanvas.height !== h * dpr) {
-      waveformCanvas.width = w * dpr;
-      waveformCanvas.height = h * dpr;
-      ctx.scale(dpr, dpr);
+    const pixelWidth = Math.round(w * dpr);
+    const pixelHeight = Math.round(h * dpr);
+    if (waveformCanvas.width !== pixelWidth || waveformCanvas.height !== pixelHeight) {
+      waveformCanvas.width = pixelWidth;
+      waveformCanvas.height = pixelHeight;
     }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
-    if (analyser && audio.src && !audio.paused) {
+    const active = analyser && audio.src && !audio.paused;
+    if (active) {
       analyser.getByteFrequencyData(waveformData);
-      const barCount = Math.min(WAVEFORM_BAR_COUNT, waveformData.length);
-      const barWidth = w / barCount;
-      const gap = Math.max(0.5, barWidth * 0.15);
-      const barW = Math.max(1, barWidth - gap);
-      for (let i = 0; i < barCount; i++) {
-        const idx = i;
-        const value = waveformData[idx] / 255;
-        const barH = Math.max(2, value * h);
-        const x = i * barWidth + (barWidth - barW) / 2;
-        const y = h - barH;
-        const opacity = 0.25 + value * 0.5;
-        ctx.fillStyle = `rgba(167, 139, 250, ${opacity})`;
-        ctx.fillRect(x, y, barW, barH);
-      }
-    } else {
-      ctx.fillStyle = "rgba(167, 139, 250, 0.06)";
-      ctx.fillRect(0, h - 1, w, 1);
+    }
+
+    const cx = w / 2;
+    const cy = h / 2;
+    const size = Math.min(w, h);
+    const baseRadius = size * 0.405;
+    const maxPulse = size * 0.065;
+    const motionTime = timestamp * 0.00018;
+
+    for (let i = 0; i < HALO_PARTICLE_COUNT; i++) {
+      const progress = i / HALO_PARTICLE_COUNT;
+      // These stable pseudo-random values keep the halo organic without
+      // allowing particles to jump to new positions from frame to frame.
+      const seed = Math.sin((i + 1) * 91.345) * 43758.5453;
+      const random = seed - Math.floor(seed);
+      const secondSeed = Math.sin((i + 1) * 47.123) * 23421.631;
+      const randomTwo = secondSeed - Math.floor(secondSeed);
+      const direction = i % 2 === 0 ? 1 : -1;
+      const orbitSpeed = 0.55 + random * 0.55;
+      const angle =
+        progress * Math.PI * 2 -
+        Math.PI / 2 +
+        motionTime * orbitSpeed * direction;
+      const foldedProgress = progress <= 0.5 ? progress * 2 : (1 - progress) * 2;
+      const dataIndex = Math.min(
+        waveformData.length - 1,
+        Math.floor(foldedProgress * 63),
+      );
+      const frequency = active ? waveformData[dataIndex] / 255 : 0;
+      const bassIndex = Math.min(10, Math.floor(progress * 11));
+      const bass = active ? waveformData[bassIndex] / 255 : 0;
+      const idleDrift =
+        Math.sin(timestamp * 0.0007 + i * 1.73) * (0.8 + random * 1.8);
+      const scatteredRadius = (randomTwo - 0.5) * size * 0.035;
+      const audioPush = active
+        ? Math.pow(frequency, 0.82) * maxPulse * 0.72 +
+          Math.pow(bass, 1.45) * maxPulse * 0.28
+        : 0;
+      const radius = baseRadius + scatteredRadius + idleDrift + audioPush;
+      const particleRadius =
+        0.8 +
+        random * 1.35 +
+        (active ? Math.pow(frequency, 1.35) * 2.3 : 0);
+      const isCoralAccent = i % 7 === 0 || (active && frequency > 0.68);
+      const alpha = active
+        ? Math.min(0.95, 0.3 + frequency * 0.68)
+        : 0.18 + random * 0.2;
+
+      ctx.beginPath();
+      ctx.arc(
+        cx + Math.cos(angle) * radius,
+        cy + Math.sin(angle) * radius,
+        particleRadius,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fillStyle = isCoralAccent
+        ? `rgba(240, 82, 56, ${alpha})`
+        : `rgba(23, 23, 19, ${alpha})`;
+      ctx.fill();
     }
     requestAnimationFrame(drawWaveform);
   }
@@ -219,11 +370,15 @@ function all() {
 
   function loadTrack(url, name, artist, coverDataUrl, autoPlay) {
     const displayName = name || "Current track";
+    const displayArtist = artist || "Unknown artist";
     trackNameEl.textContent = displayName;
+    if (trackArtistEl) trackArtistEl.textContent = displayArtist;
     if (nowPlayingName) nowPlayingName.textContent = displayName;
+    if (nowPlayingArtist) nowPlayingArtist.textContent = displayArtist;
     setCover(coverDataUrl || null);
     audio.src = url || "";
     seekBar.value = 0;
+    seekBar.style.setProperty("--progress", "0%");
     currentTimeEl.textContent = "0:00";
     durationEl.textContent = "0:00";
     playPauseBtn.disabled = !url;
@@ -254,10 +409,30 @@ function all() {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
   const removeIconSvg =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  const heartIconSvg =
+    '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>';
+
+  function applyLikeState(button, likes) {
+    if (!button) return;
+    const safeLikes = Array.isArray(likes) ? likes : [];
+    const liked = safeLikes.some(
+      (name) =>
+        typeof name === "string" &&
+        name.toLowerCase() === currentUserName.toLowerCase(),
+    );
+    button.classList.toggle("is-liked", liked);
+    button.setAttribute("aria-pressed", String(liked));
+    button.title = liked ? "Unlike this song" : "Like this song";
+    const count = button.querySelector(".like-count");
+    if (count) count.textContent = String(safeLikes.length);
+  }
 
   function renderSavedList(tracks) {
     if (!savedList || !savedEmpty) return;
-    console.log(tracks.slice(0, 10));
+    if (libraryCount) {
+      const count = tracks.length;
+      libraryCount.textContent = `${String(count).padStart(2, "0")} ${count === 1 ? "track" : "tracks"}`;
+    }
     const scrollY = window.scrollY;
     savedList.innerHTML = "";
     if (tracks.length === 0) {
@@ -278,10 +453,22 @@ function all() {
       const name =
         t?.metadata?.title || t.originalName || t.filename || "Track";
       const artist = t?.metadata?.artist || "Unknown Artist";
+      const likes = Array.isArray(t.likes) ? t.likes : [];
+      const safeName = name
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/"/g, "&quot;");
+      const safeArtist = artist
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/"/g, "&quot;");
+      const coverMarkup = coverUrl
+        ? `<img src="${coverUrl}" class="saved-card-cover-icon" alt="" />`
+        : '<span class="saved-card-cover-fallback" aria-hidden="true">♪</span>';
       card.innerHTML = `
         <div class="saved-card-cover-wrap">
           <div class="saved-card-cover">
-              <img src=${coverUrl} class="saved-card-cover-icon" />
+              ${coverMarkup}
           </div>
           <button type="button" class="btn saved-card-play-overlay" title="Set as current track for everyone" aria-label="Play">
             ${playIconSvg}
@@ -289,8 +476,8 @@ function all() {
         </div>
         <div class="saved-card-body">
           <div class="saved-card-body-left">
-          <div class="saved-item-name" title="${name.replace(/"/g, "&quot;")}">${name.replace(/</g, "&lt;")}</div>
-          <div class="saved-item-artist">${artist}</div>
+          <div class="saved-item-name" title="${safeName}">${safeName}</div>
+          <div class="saved-item-artist" title="${safeArtist}">${safeArtist}</div>
           </div>
           <div class="saved-item-actions"></div>
         </div>
@@ -322,12 +509,14 @@ function all() {
       downloadLink.download = t.originalName || "track";
       downloadLink.className = "btn btn-saved-action btn-saved-download";
       downloadLink.title = "Download file";
+      downloadLink.setAttribute("aria-label", `Download ${name}`);
       downloadLink.innerHTML = downloadIconSvg;
 
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
       removeBtn.className = "btn btn-saved-action btn-saved-remove";
       removeBtn.title = "Remove from saved list";
+      removeBtn.setAttribute("aria-label", `Delete ${name}`);
       removeBtn.innerHTML = removeIconSvg;
       removeBtn.addEventListener("click", async () => {
         try {
@@ -338,6 +527,35 @@ function all() {
         }
       });
 
+      const likeBtn = document.createElement("button");
+      likeBtn.type = "button";
+      likeBtn.className = "btn btn-saved-action btn-saved-like";
+      likeBtn.dataset.trackId = t.id;
+      likeBtn.innerHTML = `${heartIconSvg}<span class="like-count">${likes.length}</span>`;
+      applyLikeState(likeBtn, likes);
+      likeBtn.addEventListener("click", async () => {
+        if (!currentUserName) {
+          openLogin();
+          return;
+        }
+        likeBtn.disabled = true;
+        try {
+          const response = await fetch(`/api/saved/${t.id}/like`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: currentUserName }),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || "Could not update like");
+          applyLikeState(likeBtn, result.likes);
+        } catch (error) {
+          console.error(error);
+        } finally {
+          likeBtn.disabled = false;
+        }
+      });
+
+      actions.appendChild(likeBtn);
       actions.appendChild(downloadLink);
       actions.appendChild(removeBtn);
       savedList.appendChild(card);
@@ -521,6 +739,12 @@ function all() {
     });
 
     socket.on("users-count", updateUsersCount);
+    socket.on("track-liked", ({ trackId, likes }) => {
+      const button = savedList?.querySelector(
+        `.btn-saved-like[data-track-id="${CSS.escape(String(trackId))}"]`,
+      );
+      applyLikeState(button, likes);
+    });
   }
 
   let lastCoverObjectUrl = null;
@@ -576,8 +800,9 @@ function all() {
         extractCoverFromFile(file, (coverDataUrl) => {
           loadTrack(
             data.url,
-            data.originalName || file.name,
-            coverDataUrl,
+            data.metadata?.title || data.originalName || file.name,
+            data.metadata?.artist || "Unknown artist",
+            coverDataUrl || data.metadata?.coverUrl || null,
             true,
           );
         });
@@ -609,16 +834,19 @@ function all() {
   audio.addEventListener("play", () => {
     playIcon.classList.add("icon-hidden");
     pauseIcon.classList.remove("icon-hidden");
+    nowPlayingSection?.classList.add("is-playing");
   });
   audio.addEventListener("pause", () => {
     pauseIcon.classList.add("icon-hidden");
     playIcon.classList.remove("icon-hidden");
+    nowPlayingSection?.classList.remove("is-playing");
   });
 
   // Seek bar (anyone can control)
   seekBar.addEventListener("input", () => {
     if (!audio.duration || isSeekingBySync) return;
     const pct = Number(seekBar.value);
+    seekBar.style.setProperty("--progress", `${pct}%`);
     const time = (pct / 100) * audio.duration;
     currentTimeEl.textContent = formatTime(time);
     audio.currentTime = time;
@@ -628,7 +856,10 @@ function all() {
   audio.addEventListener("timeupdate", () => {
     if (isSeekingBySync || !audio.duration) return;
     const pct = (audio.currentTime / audio.duration) * 100;
-    if (Math.abs(pct - Number(seekBar.value)) > 0.5) seekBar.value = pct;
+    if (Math.abs(pct - Number(seekBar.value)) > 0.5) {
+      seekBar.value = pct;
+      seekBar.style.setProperty("--progress", `${pct}%`);
+    }
     currentTimeEl.textContent = formatTime(audio.currentTime);
   });
 
@@ -639,12 +870,10 @@ function all() {
   // Volume
   volumeBar.addEventListener("input", () => {
     audio.volume = Number(volumeBar.value) / 100;
+    volumeBar.style.setProperty("--progress", `${volumeBar.value}%`);
   });
   // Bootstrap
-  setupVisibilityHandling();
-  initSocket();
-  refreshSavedList();
-  drawWaveform();
+  setupLogin();
 }
 
 all();

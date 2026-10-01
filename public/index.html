@@ -3,93 +3,141 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Fly Together — Sync Music</title>
+    <meta name="theme-color" content="#f4efe4" />
+    <title>Fly Together — A shared listening room</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Betania+Patmos&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/style.css" />
   </head>
 
   <body>
+    <div class="site-noise" aria-hidden="true"></div>
+    <div class="login-gate" id="loginGate" role="dialog" aria-modal="true" aria-labelledby="loginTitle" hidden>
+      <div class="login-card">
+        <span class="login-stamp" aria-hidden="true">FT / ROOM PASS</span>
+        <div class="login-mark" aria-hidden="true">
+          <svg viewBox="0 0 28 28" fill="none">
+            <path d="M4 15.1 23.4 5l-7.1 18-3.2-7.6L4 15.1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+            <path d="m13.1 15.4 10.3-10.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </div>
+        <p class="eyebrow"><span></span> Welcome aboard</p>
+        <h2 id="loginTitle">What should we<br /><em>call you?</em></h2>
+        <p class="login-note">Your name lets friends know who’s listening and remembers the songs you like. No password needed.</p>
+        <form class="login-form" id="loginForm">
+          <label for="displayNameInput">Your name</label>
+          <div class="login-input-row">
+            <input id="displayNameInput" name="displayName" type="text" maxlength="40" autocomplete="name" placeholder="e.g. Mina" required />
+            <button type="submit" aria-label="Allow autoplay audio and enter the listening room">Allow &amp; enter <span>→</span></button>
+          </div>
+          <div class="audio-consent">
+            <span class="audio-consent-icon" aria-hidden="true">♫</span>
+            <span>
+              <strong>Allow automatic audio playback</strong>
+              Music may start and stay synchronized as soon as you enter.
+            </span>
+          </div>
+          <button class="decline-audio" id="declineAudioBtn" type="button">I don’t allow autoplay</button>
+          <p class="login-error" id="loginError" aria-live="polite"></p>
+        </form>
+      </div>
+    </div>
+
     <div class="app">
       <header class="header">
-        <div class="header-inner">
-          <h1 class="logo">
-            <span class="logo-icon" aria-hidden="true">✈</span>
-            Fly Together
-          </h1>
+        <a class="logo" href="/" aria-label="Fly Together home">
+          <span class="logo-mark" aria-hidden="true">
+            <svg viewBox="0 0 28 28" fill="none">
+              <path d="M4 15.1 23.4 5l-7.1 18-3.2-7.6L4 15.1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+              <path d="m13.1 15.4 10.3-10.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </span>
+          <span class="logo-copy">Fly <em>Together</em></span>
+        </a>
 
-          <div class="meta">
-            <div class="connection-status" id="connectionStatus">
-              <span class="status-dot"></span>
-              <span class="status-text">Connecting…</span>
-            </div>
-            <span class="users-badge" id="usersCount">0 listeners</span>
-            <span class="role-badge" id="roleBadge">—</span>
-          </div>
+        <div class="room-label" aria-label="Current room">
+          <span>Open listening room</span>
+          <span class="room-line"></span>
         </div>
-        <!-- <div class="header-extras"></div> -->
+
+        <div class="meta">
+          <div class="connection-status" id="connectionStatus">
+            <span class="status-dot"></span>
+            <span class="status-text">Connecting…</span>
+          </div>
+          <span class="users-badge" id="usersCount">0 listeners</span>
+          <button class="user-badge" id="userBadge" type="button" title="Change your name">
+            <span class="user-avatar" id="userAvatar">?</span>
+            <span id="userName">Guest</span>
+          </button>
+          <span class="role-badge listener" id="roleBadge">Open</span>
+        </div>
       </header>
 
       <main class="main">
         <section class="now-playing" id="nowPlayingSection">
-          <div
-            class="cover-backdrop"
-            id="coverBackdrop"
-            aria-hidden="true"
-          ></div>
-          <div class="now-playing-cover" id="nowPlayingCover">
-            <span class="now-playing-placeholder" id="nowPlayingPlaceholder"
-              >♪</span
-            >
-            <img class="now-playing-img" id="nowPlayingImg" alt="" hidden />
+          <div class="hero-copy">
+            <p class="eyebrow"><span></span> Now in the air</p>
+            <h1>One room.<br /><em>One rhythm.</em></h1>
+            <p class="hero-note">Whatever plays here, plays for everyone.</p>
           </div>
-          <p class="now-playing-name" id="nowPlayingName">No track loaded</p>
+
+          <div class="record-stage">
+            <div class="cover-backdrop" id="coverBackdrop" aria-hidden="true"></div>
+            <canvas class="waveform-canvas" id="waveformCanvas" aria-hidden="true"></canvas>
+            <div class="cover-orbit" aria-hidden="true"><span class="orbit-icon">♫</span></div>
+            <div class="now-playing-cover" id="nowPlayingCover">
+              <span class="now-playing-placeholder" id="nowPlayingPlaceholder" aria-hidden="true">
+                <svg viewBox="0 0 64 64" fill="none">
+                  <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2" />
+                  <circle cx="32" cy="32" r="7" fill="currentColor" />
+                  <path d="M32 4v21M60 32H39M32 60V39M4 32h21" stroke="currentColor" stroke-width="1" opacity=".45" />
+                </svg>
+              </span>
+              <img class="now-playing-img" id="nowPlayingImg" alt="Current album artwork" hidden />
+            </div>
+            <span class="record-index">FT / 001</span>
+          </div>
+
+          <div class="now-playing-info">
+            <p class="now-playing-name" id="nowPlayingName">No track loaded</p>
+            <p class="now-playing-artist" id="nowPlayingArtist">Choose a song from the library</p>
+          </div>
         </section>
 
         <section class="saved-section" id="savedSection">
           <div class="saved-header">
-            <h2 class="saved-heading">Saved songs</h2>
+            <div>
+              <p class="eyebrow"><span></span> Your collection</p>
+              <h2 class="saved-heading">Saved songs</h2>
+            </div>
+            <span class="library-count" id="libraryCount">00 tracks</span>
           </div>
+
           <div class="saved-grid">
-            <label
-              class="saved-card saved-card-add"
-              id="uploadSection"
-              for="fileInput"
-            >
-              <span class="saved-card-cover">
-                <svg
-                  class="saved-card-add-icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
+            <label class="saved-card saved-card-add" id="uploadSection" for="fileInput">
+              <span class="saved-card-cover add-cover">
+                <svg class="saved-card-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
               </span>
               <span class="saved-card-body">
-                <span class="saved-card-add-label">Add</span>
+                <span class="saved-card-body-left">
+                  <span class="saved-card-add-label">Add a song</span>
+                  <span class="saved-item-artist">MP3, WAV, OGG or M4A</span>
+                </span>
+                <span class="add-arrow" aria-hidden="true">↗</span>
               </span>
-              <input
-                type="file"
-                id="fileInput"
-                accept=".mp3,.wav,.ogg,.m4a"
-                class="file-input-hidden"
-              />
+              <input type="file" id="fileInput" accept=".mp3,.wav,.ogg,.m4a" class="file-input-hidden" />
             </label>
             <div class="saved-grid-list" id="savedList"></div>
           </div>
-          <p class="saved-empty" id="savedEmpty">
-            No saved songs yet. Tap the Add card to get started.
-          </p>
+          <p class="saved-empty" id="savedEmpty">Your shelf is quiet. Add the first song to start a shared session.</p>
         </section>
       </main>
     </div>
@@ -97,58 +145,30 @@
     <div class="player-bottom">
       <footer class="player-bar" id="playerBar">
         <div class="player-bar-track" id="trackInfo">
+          <span class="player-kicker">Playing for everyone</span>
           <span class="track-name" id="trackName">No track loaded</span>
+          <span class="track-artist" id="trackArtist">Waiting for a selection</span>
         </div>
+
         <div class="player-bar-controls">
-          <button
-            type="button"
-            class="btn btn-icon"
-            id="playPauseBtn"
-            title="Play / Pause"
-            disabled
-          >
-            <svg
-              class="icon"
-              id="playIcon"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M8 5v14l11-7z" />
-            </svg>
-            <svg
-              class="icon icon-hidden"
-              id="pauseIcon"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-            </svg>
+          <button type="button" class="btn btn-icon" id="playPauseBtn" title="Play / Pause" aria-label="Play or pause" disabled>
+            <svg class="icon" id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+            <svg class="icon icon-hidden" id="pauseIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
           </button>
           <div class="seek-wrap">
             <span class="time" id="currentTime">0:00</span>
-            <input
-              type="range"
-              class="seek"
-              id="seekBar"
-              min="0"
-              max="100"
-              value="0"
-              step="0.1"
-            />
+            <input type="range" class="seek" id="seekBar" min="0" max="100" value="0" step="0.1" aria-label="Track position" />
             <span class="time" id="duration">0:00</span>
           </div>
         </div>
+
         <div class="volume-wrap">
           <label class="volume-label">
-            <span class="volume-icon" aria-hidden="true">🔊</span>
-            <input
-              type="range"
-              class="volume"
-              id="volumeBar"
-              min="0"
-              max="100"
-              value="100"
-            />
+            <svg class="volume-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M11 5 6.5 9H3v6h3.5l4.5 4V5Z" stroke-linejoin="round" />
+              <path d="M15 9.5a4 4 0 0 1 0 5M17.5 7a7.5 7.5 0 0 1 0 10" stroke-linecap="round" />
+            </svg>
+            <input type="range" class="volume" id="volumeBar" min="0" max="100" value="100" aria-label="Volume" />
           </label>
         </div>
       </footer>
