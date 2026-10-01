@@ -7,7 +7,7 @@ const { Server } = require("socket.io");
 const multer = require("multer");
 const NodeID3 = require("node-id3");
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 const COVERS_DIR = path.join(__dirname, "covers");
 const SAVED_TRACKS_FILE = path.join(__dirname, "saved-tracks.json");
@@ -197,6 +197,41 @@ app.get("/api/metadata/:filename", (req, res) => {
 
 app.get("/api/saved", (req, res) => {
   res.json({ saved: loadSavedTracks() });
+});
+
+app.post("/api/saved/:id/like", (req, res) => {
+  const name =
+    typeof req.body?.name === "string"
+      ? req.body.name.trim().replace(/\s+/g, " ").slice(0, 40)
+      : "";
+  if (name.length < 2) {
+    return res.status(400).json({ error: "A valid listener name is required" });
+  }
+
+  const tracks = loadSavedTracks();
+  const track = tracks.find((item) => item.id === req.params.id);
+  if (!track) {
+    return res.status(404).json({ error: "Saved track not found" });
+  }
+
+  const likes = Array.isArray(track.likes) ? track.likes : [];
+  const existingIndex = likes.findIndex(
+    (likedBy) =>
+      typeof likedBy === "string" &&
+      likedBy.toLocaleLowerCase() === name.toLocaleLowerCase(),
+  );
+
+  if (existingIndex >= 0) likes.splice(existingIndex, 1);
+  else likes.push(name);
+
+  track.likes = likes;
+  updateSavedTracksFile(tracks);
+  io.emit("track-liked", { trackId: track.id, likes });
+  res.json({
+    liked: existingIndex < 0,
+    likeCount: likes.length,
+    likes,
+  });
 });
 
 app.delete("/api/saved/:id", (req, res) => {

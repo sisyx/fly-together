@@ -27,9 +27,17 @@ function all() {
   const nowPlayingImg = document.getElementById("nowPlayingImg");
   const nowPlayingName = document.getElementById("nowPlayingName");
   const nowPlayingArtist = document.getElementById("nowPlayingArtist");
+  const nowPlayingSection = document.getElementById("nowPlayingSection");
   const trackArtistEl = document.getElementById("trackArtist");
   const libraryCount = document.getElementById("libraryCount");
   const waveformCanvas = document.getElementById("waveformCanvas");
+  const loginGate = document.getElementById("loginGate");
+  const loginForm = document.getElementById("loginForm");
+  const displayNameInput = document.getElementById("displayNameInput");
+  const loginError = document.getElementById("loginError");
+  const userBadge = document.getElementById("userBadge");
+  const userNameEl = document.getElementById("userName");
+  const userAvatar = document.getElementById("userAvatar");
 
   const POSITION_SYNC_INTERVAL_MS = 2500;
   const SEEK_SYNC_THRESHOLD = 1.5;
@@ -45,8 +53,70 @@ function all() {
   let analyser = null;
   let waveformInitialized = false;
   let wasPlayingBeforeHidden = false;
-  const WAVEFORM_BAR_COUNT = 20;
+  const WAVEFORM_POINT_COUNT = 96;
   const waveformData = new Uint8Array(128);
+  const USER_NAME_KEY = "fly-together-display-name";
+  let currentUserName = "";
+
+  function storedUserName() {
+    try {
+      return (localStorage.getItem(USER_NAME_KEY) || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function saveUserName(name) {
+    try {
+      localStorage.setItem(USER_NAME_KEY, name);
+    } catch {
+      // The room still works when storage is disabled.
+    }
+  }
+
+  function updateUserBadge(name) {
+    currentUserName = name;
+    if (userNameEl) userNameEl.textContent = name || "Guest";
+    if (userAvatar) userAvatar.textContent = name ? name.charAt(0).toUpperCase() : "?";
+  }
+
+  function openLogin() {
+    if (!loginGate || !displayNameInput) return;
+    loginGate.hidden = false;
+    document.body.classList.add("login-open");
+    displayNameInput.value = currentUserName;
+    if (loginError) loginError.textContent = "";
+    requestAnimationFrame(() => displayNameInput.focus());
+  }
+
+  function closeLogin() {
+    if (!loginGate) return;
+    loginGate.hidden = true;
+    document.body.classList.remove("login-open");
+  }
+
+  function setupLogin() {
+    const savedName = storedUserName();
+    updateUserBadge(savedName);
+    if (savedName) closeLogin();
+    else openLogin();
+
+    loginForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const name = displayNameInput.value.trim().replace(/\s+/g, " ");
+      if (name.length < 2) {
+        if (loginError) loginError.textContent = "Please enter at least two characters.";
+        displayNameInput.focus();
+        return;
+      }
+      updateUserBadge(name);
+      saveUserName(name);
+      closeLogin();
+      refreshSavedList();
+    });
+
+    userBadge?.addEventListener("click", openLogin);
+  }
 
   function setupVisibilityHandling() {
     document.addEventListener("visibilitychange", () => {
@@ -85,9 +155,9 @@ function all() {
       const source = audioContext.createMediaElementSource(audio);
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.75;
-      analyser.minDecibels = -70;
-      analyser.maxDecibels = -25;
+      analyser.smoothingTimeConstant = 0.62;
+      analyser.minDecibels = -82;
+      analyser.maxDecibels = -28;
       source.connect(analyser);
       analyser.connect(audioContext.destination);
       waveformInitialized = true;
@@ -96,7 +166,7 @@ function all() {
     }
   }
 
-  function drawWaveform() {
+  function drawWaveform(timestamp = 0) {
     if (!waveformCanvas) {
       requestAnimationFrame(drawWaveform);
       return;
@@ -110,33 +180,80 @@ function all() {
     const rect = waveformCanvas.getBoundingClientRect();
     const w = rect.width;
     const h = rect.height;
-    if (waveformCanvas.width !== w * dpr || waveformCanvas.height !== h * dpr) {
-      waveformCanvas.width = w * dpr;
-      waveformCanvas.height = h * dpr;
-      ctx.scale(dpr, dpr);
+    const pixelWidth = Math.round(w * dpr);
+    const pixelHeight = Math.round(h * dpr);
+    if (waveformCanvas.width !== pixelWidth || waveformCanvas.height !== pixelHeight) {
+      waveformCanvas.width = pixelWidth;
+      waveformCanvas.height = pixelHeight;
     }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
-    if (analyser && audio.src && !audio.paused) {
+    const active = analyser && audio.src && !audio.paused;
+    if (active) {
       analyser.getByteFrequencyData(waveformData);
-      const barCount = Math.min(WAVEFORM_BAR_COUNT, waveformData.length);
-      const barWidth = w / barCount;
-      const gap = Math.max(0.5, barWidth * 0.15);
-      const barW = Math.max(1, barWidth - gap);
-      for (let i = 0; i < barCount; i++) {
-        const idx = i;
-        const value = waveformData[idx] / 255;
-        const barH = Math.max(2, value * h);
-        const x = i * barWidth + (barWidth - barW) / 2;
-        const y = h - barH;
-        const opacity = 0.25 + value * 0.5;
-        ctx.fillStyle = `rgba(240, 82, 56, ${opacity})`;
-        ctx.fillRect(x, y, barW, barH);
-      }
-    } else {
-      ctx.fillStyle = "rgba(240, 82, 56, 0.14)";
-      ctx.fillRect(0, h - 1, w, 1);
     }
+
+    const cx = w / 2;
+    const cy = h / 2;
+    const baseRadius = Math.min(w, h) * 0.425;
+    const maxWave = Math.min(w, h) * 0.06;
+    const points = [];
+
+    for (let i = 0; i < WAVEFORM_POINT_COUNT; i++) {
+      const progress = i / WAVEFORM_POINT_COUNT;
+      const angle = progress * Math.PI * 2 - Math.PI / 2;
+      const foldedProgress = progress <= 0.5 ? progress * 2 : (1 - progress) * 2;
+      const dataIndex = Math.min(
+        waveformData.length - 1,
+        Math.floor(foldedProgress * 64),
+      );
+      const frequency = active ? waveformData[dataIndex] / 255 : 0;
+      const organicRipple =
+        Math.sin(angle * 5 + timestamp * 0.0017) * (active ? 2.6 : 0.7) +
+        Math.sin(angle * 9 - timestamp * 0.0011) * (active ? 1.4 : 0.35);
+      const radius =
+        baseRadius +
+        organicRipple +
+        (active ? Math.pow(frequency, 0.72) * maxWave : 0);
+      points.push({
+        x: cx + Math.cos(angle) * radius,
+        y: cy + Math.sin(angle) * radius,
+      });
+    }
+
+    const drawLoop = (offset, color, width) => {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(1 + offset, 1 + offset);
+      ctx.translate(-cx, -cy);
+      ctx.beginPath();
+      const first = points[0];
+      const last = points[points.length - 1];
+      ctx.moveTo((last.x + first.x) / 2, (last.y + first.y) / 2);
+      for (let i = 0; i < points.length; i++) {
+        const point = points[i];
+        const next = points[(i + 1) % points.length];
+        ctx.quadraticCurveTo(
+          point.x,
+          point.y,
+          (point.x + next.x) / 2,
+          (point.y + next.y) / 2,
+        );
+      }
+      ctx.closePath();
+      ctx.lineWidth = width;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    drawLoop(0.012, "rgba(23, 23, 19, 0.2)", 1);
+    drawLoop(
+      0,
+      active ? "rgba(240, 82, 56, 0.92)" : "rgba(23, 23, 19, 0.38)",
+      active ? 2.2 : 1.25,
+    );
     requestAnimationFrame(drawWaveform);
   }
 
@@ -261,6 +378,23 @@ function all() {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
   const removeIconSvg =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  const heartIconSvg =
+    '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>';
+
+  function applyLikeState(button, likes) {
+    if (!button) return;
+    const safeLikes = Array.isArray(likes) ? likes : [];
+    const liked = safeLikes.some(
+      (name) =>
+        typeof name === "string" &&
+        name.toLowerCase() === currentUserName.toLowerCase(),
+    );
+    button.classList.toggle("is-liked", liked);
+    button.setAttribute("aria-pressed", String(liked));
+    button.title = liked ? "Unlike this song" : "Like this song";
+    const count = button.querySelector(".like-count");
+    if (count) count.textContent = String(safeLikes.length);
+  }
 
   function renderSavedList(tracks) {
     if (!savedList || !savedEmpty) return;
@@ -288,6 +422,7 @@ function all() {
       const name =
         t?.metadata?.title || t.originalName || t.filename || "Track";
       const artist = t?.metadata?.artist || "Unknown Artist";
+      const likes = Array.isArray(t.likes) ? t.likes : [];
       const safeName = name
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -343,12 +478,14 @@ function all() {
       downloadLink.download = t.originalName || "track";
       downloadLink.className = "btn btn-saved-action btn-saved-download";
       downloadLink.title = "Download file";
+      downloadLink.setAttribute("aria-label", `Download ${name}`);
       downloadLink.innerHTML = downloadIconSvg;
 
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
       removeBtn.className = "btn btn-saved-action btn-saved-remove";
       removeBtn.title = "Remove from saved list";
+      removeBtn.setAttribute("aria-label", `Delete ${name}`);
       removeBtn.innerHTML = removeIconSvg;
       removeBtn.addEventListener("click", async () => {
         try {
@@ -359,6 +496,35 @@ function all() {
         }
       });
 
+      const likeBtn = document.createElement("button");
+      likeBtn.type = "button";
+      likeBtn.className = "btn btn-saved-action btn-saved-like";
+      likeBtn.dataset.trackId = t.id;
+      likeBtn.innerHTML = `${heartIconSvg}<span class="like-count">${likes.length}</span>`;
+      applyLikeState(likeBtn, likes);
+      likeBtn.addEventListener("click", async () => {
+        if (!currentUserName) {
+          openLogin();
+          return;
+        }
+        likeBtn.disabled = true;
+        try {
+          const response = await fetch(`/api/saved/${t.id}/like`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: currentUserName }),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || "Could not update like");
+          applyLikeState(likeBtn, result.likes);
+        } catch (error) {
+          console.error(error);
+        } finally {
+          likeBtn.disabled = false;
+        }
+      });
+
+      actions.appendChild(likeBtn);
       actions.appendChild(downloadLink);
       actions.appendChild(removeBtn);
       savedList.appendChild(card);
@@ -542,6 +708,12 @@ function all() {
     });
 
     socket.on("users-count", updateUsersCount);
+    socket.on("track-liked", ({ trackId, likes }) => {
+      const button = savedList?.querySelector(
+        `.btn-saved-like[data-track-id="${CSS.escape(String(trackId))}"]`,
+      );
+      applyLikeState(button, likes);
+    });
   }
 
   let lastCoverObjectUrl = null;
@@ -631,10 +803,12 @@ function all() {
   audio.addEventListener("play", () => {
     playIcon.classList.add("icon-hidden");
     pauseIcon.classList.remove("icon-hidden");
+    nowPlayingSection?.classList.add("is-playing");
   });
   audio.addEventListener("pause", () => {
     pauseIcon.classList.add("icon-hidden");
     playIcon.classList.remove("icon-hidden");
+    nowPlayingSection?.classList.remove("is-playing");
   });
 
   // Seek bar (anyone can control)
@@ -668,6 +842,7 @@ function all() {
     volumeBar.style.setProperty("--progress", `${volumeBar.value}%`);
   });
   // Bootstrap
+  setupLogin();
   setupVisibilityHandling();
   initSocket();
   refreshSavedList();

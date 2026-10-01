@@ -16,6 +16,29 @@
 
   <body>
     <div class="site-noise" aria-hidden="true"></div>
+    <div class="login-gate" id="loginGate" role="dialog" aria-modal="true" aria-labelledby="loginTitle" hidden>
+      <div class="login-card">
+        <span class="login-stamp" aria-hidden="true">FT / ROOM PASS</span>
+        <div class="login-mark" aria-hidden="true">
+          <svg viewBox="0 0 28 28" fill="none">
+            <path d="M4 15.1 23.4 5l-7.1 18-3.2-7.6L4 15.1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+            <path d="m13.1 15.4 10.3-10.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </div>
+        <p class="eyebrow"><span></span> Welcome aboard</p>
+        <h2 id="loginTitle">What should we<br /><em>call you?</em></h2>
+        <p class="login-note">Your name lets friends know who’s listening and remembers the songs you like. No password needed.</p>
+        <form class="login-form" id="loginForm">
+          <label for="displayNameInput">Your name</label>
+          <div class="login-input-row">
+            <input id="displayNameInput" name="displayName" type="text" maxlength="40" autocomplete="name" placeholder="e.g. Mina" required />
+            <button type="submit" aria-label="Enter listening room">Enter <span>→</span></button>
+          </div>
+          <p class="login-error" id="loginError" aria-live="polite"></p>
+        </form>
+      </div>
+    </div>
+
     <div class="app">
       <header class="header">
         <a class="logo" href="/" aria-label="Fly Together home">
@@ -39,6 +62,10 @@
             <span class="status-text">Connecting…</span>
           </div>
           <span class="users-badge" id="usersCount">0 listeners</span>
+          <button class="user-badge" id="userBadge" type="button" title="Change your name">
+            <span class="user-avatar" id="userAvatar">?</span>
+            <span id="userName">Guest</span>
+          </button>
           <span class="role-badge listener" id="roleBadge">Open</span>
         </div>
       </header>
@@ -53,9 +80,8 @@
 
           <div class="record-stage">
             <div class="cover-backdrop" id="coverBackdrop" aria-hidden="true"></div>
-            <div class="cover-orbit" aria-hidden="true">
-              <span>LIVE &nbsp;•&nbsp; SHARED &nbsp;•&nbsp; IN SYNC &nbsp;•&nbsp;</span>
-            </div>
+            <canvas class="waveform-canvas" id="waveformCanvas" aria-hidden="true"></canvas>
+            <div class="cover-orbit" aria-hidden="true"><span class="orbit-icon">♫</span></div>
             <div class="now-playing-cover" id="nowPlayingCover">
               <span class="now-playing-placeholder" id="nowPlayingPlaceholder" aria-hidden="true">
                 <svg viewBox="0 0 64 64" fill="none">
@@ -109,7 +135,6 @@
     </div>
 
     <div class="player-bottom">
-      <canvas class="waveform-canvas" id="waveformCanvas" aria-hidden="true"></canvas>
       <footer class="player-bar" id="playerBar">
         <div class="player-bar-track" id="trackInfo">
           <span class="player-kicker">Playing for everyone</span>
