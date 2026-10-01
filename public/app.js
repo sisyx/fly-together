@@ -35,6 +35,7 @@ function all() {
   const loginForm = document.getElementById("loginForm");
   const displayNameInput = document.getElementById("displayNameInput");
   const loginError = document.getElementById("loginError");
+  const declineAudioBtn = document.getElementById("declineAudioBtn");
   const userBadge = document.getElementById("userBadge");
   const userNameEl = document.getElementById("userName");
   const userAvatar = document.getElementById("userAvatar");
@@ -53,10 +54,11 @@ function all() {
   let analyser = null;
   let waveformInitialized = false;
   let wasPlayingBeforeHidden = false;
-  const WAVEFORM_POINT_COUNT = 96;
+  const HALO_PARTICLE_COUNT = 108;
   const waveformData = new Uint8Array(128);
   const USER_NAME_KEY = "fly-together-display-name";
   let currentUserName = "";
+  let roomEntered = false;
 
   function storedUserName() {
     try {
@@ -98,10 +100,10 @@ function all() {
   function setupLogin() {
     const savedName = storedUserName();
     updateUserBadge(savedName);
-    if (savedName) closeLogin();
-    else openLogin();
+    openLogin();
+    statusText.textContent = "Waiting for approval";
 
-    loginForm?.addEventListener("submit", (event) => {
+    loginForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const name = displayNameInput.value.trim().replace(/\s+/g, " ");
       if (name.length < 2) {
@@ -111,11 +113,41 @@ function all() {
       }
       updateUserBadge(name);
       saveUserName(name);
+      initWaveform();
+      if (audioContext?.state === "suspended") {
+        try {
+          await audioContext.resume();
+        } catch {
+          if (loginError) {
+            loginError.textContent =
+              "Your browser did not enable audio. Please try again.";
+          }
+          return;
+        }
+      }
       closeLogin();
-      refreshSavedList();
+      if (roomEntered) refreshSavedList();
+      else enterRoom();
+    });
+
+    declineAudioBtn?.addEventListener("click", () => {
+      if (loginError) {
+        loginError.textContent =
+          "Autoplay approval is required to enter this listening room.";
+      }
     });
 
     userBadge?.addEventListener("click", openLogin);
+  }
+
+  function enterRoom() {
+    if (roomEntered) return;
+    roomEntered = true;
+    statusText.textContent = "Connecting…";
+    setupVisibilityHandling();
+    initSocket();
+    refreshSavedList();
+    drawWaveform();
   }
 
   function setupVisibilityHandling() {
@@ -147,7 +179,7 @@ function all() {
   }
 
   function initWaveform() {
-    if (waveformInitialized || !audio.src) return;
+    if (waveformInitialized) return;
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
@@ -196,64 +228,63 @@ function all() {
 
     const cx = w / 2;
     const cy = h / 2;
-    const baseRadius = Math.min(w, h) * 0.425;
-    const maxWave = Math.min(w, h) * 0.06;
-    const points = [];
+    const size = Math.min(w, h);
+    const baseRadius = size * 0.405;
+    const maxPulse = size * 0.065;
+    const motionTime = timestamp * 0.00018;
 
-    for (let i = 0; i < WAVEFORM_POINT_COUNT; i++) {
-      const progress = i / WAVEFORM_POINT_COUNT;
-      const angle = progress * Math.PI * 2 - Math.PI / 2;
+    for (let i = 0; i < HALO_PARTICLE_COUNT; i++) {
+      const progress = i / HALO_PARTICLE_COUNT;
+      // These stable pseudo-random values keep the halo organic without
+      // allowing particles to jump to new positions from frame to frame.
+      const seed = Math.sin((i + 1) * 91.345) * 43758.5453;
+      const random = seed - Math.floor(seed);
+      const secondSeed = Math.sin((i + 1) * 47.123) * 23421.631;
+      const randomTwo = secondSeed - Math.floor(secondSeed);
+      const direction = i % 2 === 0 ? 1 : -1;
+      const orbitSpeed = 0.55 + random * 0.55;
+      const angle =
+        progress * Math.PI * 2 -
+        Math.PI / 2 +
+        motionTime * orbitSpeed * direction;
       const foldedProgress = progress <= 0.5 ? progress * 2 : (1 - progress) * 2;
       const dataIndex = Math.min(
         waveformData.length - 1,
-        Math.floor(foldedProgress * 64),
+        Math.floor(foldedProgress * 63),
       );
       const frequency = active ? waveformData[dataIndex] / 255 : 0;
-      const organicRipple =
-        Math.sin(angle * 5 + timestamp * 0.0017) * (active ? 2.6 : 0.7) +
-        Math.sin(angle * 9 - timestamp * 0.0011) * (active ? 1.4 : 0.35);
-      const radius =
-        baseRadius +
-        organicRipple +
-        (active ? Math.pow(frequency, 0.72) * maxWave : 0);
-      points.push({
-        x: cx + Math.cos(angle) * radius,
-        y: cy + Math.sin(angle) * radius,
-      });
-    }
+      const bassIndex = Math.min(10, Math.floor(progress * 11));
+      const bass = active ? waveformData[bassIndex] / 255 : 0;
+      const idleDrift =
+        Math.sin(timestamp * 0.0007 + i * 1.73) * (0.8 + random * 1.8);
+      const scatteredRadius = (randomTwo - 0.5) * size * 0.035;
+      const audioPush = active
+        ? Math.pow(frequency, 0.82) * maxPulse * 0.72 +
+          Math.pow(bass, 1.45) * maxPulse * 0.28
+        : 0;
+      const radius = baseRadius + scatteredRadius + idleDrift + audioPush;
+      const particleRadius =
+        0.8 +
+        random * 1.35 +
+        (active ? Math.pow(frequency, 1.35) * 2.3 : 0);
+      const isCoralAccent = i % 7 === 0 || (active && frequency > 0.68);
+      const alpha = active
+        ? Math.min(0.95, 0.3 + frequency * 0.68)
+        : 0.18 + random * 0.2;
 
-    const drawLoop = (offset, color, width) => {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.scale(1 + offset, 1 + offset);
-      ctx.translate(-cx, -cy);
       ctx.beginPath();
-      const first = points[0];
-      const last = points[points.length - 1];
-      ctx.moveTo((last.x + first.x) / 2, (last.y + first.y) / 2);
-      for (let i = 0; i < points.length; i++) {
-        const point = points[i];
-        const next = points[(i + 1) % points.length];
-        ctx.quadraticCurveTo(
-          point.x,
-          point.y,
-          (point.x + next.x) / 2,
-          (point.y + next.y) / 2,
-        );
-      }
-      ctx.closePath();
-      ctx.lineWidth = width;
-      ctx.strokeStyle = color;
-      ctx.stroke();
-      ctx.restore();
-    };
-
-    drawLoop(0.012, "rgba(23, 23, 19, 0.2)", 1);
-    drawLoop(
-      0,
-      active ? "rgba(240, 82, 56, 0.92)" : "rgba(23, 23, 19, 0.38)",
-      active ? 2.2 : 1.25,
-    );
+      ctx.arc(
+        cx + Math.cos(angle) * radius,
+        cy + Math.sin(angle) * radius,
+        particleRadius,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fillStyle = isCoralAccent
+        ? `rgba(240, 82, 56, ${alpha})`
+        : `rgba(23, 23, 19, ${alpha})`;
+      ctx.fill();
+    }
     requestAnimationFrame(drawWaveform);
   }
 
@@ -843,10 +874,6 @@ function all() {
   });
   // Bootstrap
   setupLogin();
-  setupVisibilityHandling();
-  initSocket();
-  refreshSavedList();
-  drawWaveform();
 }
 
 all();

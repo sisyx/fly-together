@@ -32,8 +32,16 @@
           <label for="displayNameInput">Your name</label>
           <div class="login-input-row">
             <input id="displayNameInput" name="displayName" type="text" maxlength="40" autocomplete="name" placeholder="e.g. Mina" required />
-            <button type="submit" aria-label="Enter listening room">Enter <span>→</span></button>
+            <button type="submit" aria-label="Allow autoplay audio and enter the listening room">Allow &amp; enter <span>→</span></button>
           </div>
+          <div class="audio-consent">
+            <span class="audio-consent-icon" aria-hidden="true">♫</span>
+            <span>
+              <strong>Allow automatic audio playback</strong>
+              Music may start and stay synchronized as soon as you enter.
+            </span>
+          </div>
+          <button class="decline-audio" id="declineAudioBtn" type="button">I don’t allow autoplay</button>
           <p class="login-error" id="loginError" aria-live="polite"></p>
         </form>
       </div>
